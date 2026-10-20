@@ -21,7 +21,7 @@ claude plugin marketplace add hansei996/blame-archaeology
 claude plugin install blame-archaeology@blame-archaeology
 ```
 
-Manual: copy `skills/blame-archaeology/SKILL.md` into your agent's skills directory.
+Manual (always works — the marketplace command depends on your Claude Code version): copy `skills/blame-archaeology/SKILL.md` into your agent's skills directory.
 
 ## What it does
 

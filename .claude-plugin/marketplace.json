@@ -1,0 +1,13 @@
+{
+  "name": "blame-archaeology",
+  "owner": {
+    "name": "hansei996"
+  },
+  "plugins": [
+    {
+      "name": "blame-archaeology",
+      "source": "./",
+      "description": "A skill that makes your coding agent read git history before explaining why code looks the way it does."
+    }
+  ]
+}

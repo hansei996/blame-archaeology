@@ -1,0 +1,10 @@
+{
+  "name": "blame-archaeology",
+  "version": "0.1.0",
+  "description": "A skill that makes your coding agent read git history before explaining why code looks the way it does.",
+  "author": {
+    "name": "hansei996"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/hansei996/blame-archaeology"
+}
