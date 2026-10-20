@@ -1,5 +1,7 @@
 # blame-archaeology
 
+[![checks](https://github.com/hansei996/blame-archaeology/actions/workflows/checks.yml/badge.svg)](https://github.com/hansei996/blame-archaeology/actions/workflows/checks.yml)
+
 > **It reads the git history before it explains the code.**
 
 A skill for any coding agent. Kills design-intent guessing: no "why is this here?" answer gets written until the agent has run `git blame`, `git log -L`, and chased the linked issue or PR.
