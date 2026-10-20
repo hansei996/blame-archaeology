@@ -20,11 +20,50 @@
 
 ## 前后对比
 
-*（示意对话，非录屏）*
+问题：`backoff_delay` 给 `attempt == 0` 单独设了固定 200ms，然后再落到一条本来就能覆盖 attempt 0 的指数退避上。这个分支是不是该删？
+
+钉住的行区间：`src/auth/client.py:24-27`。
+
+```python
+def backoff_delay(attempt):
+    if attempt == 0:
+        # The credential provider is still initialising when the first attempt
+        # runs, so attempt 0 needs a fixed floor instead of the 50ms ramp.
+        return COLD_START_FLOOR_MS / 1000
+    return (BACKOFF_BASE_MS * 2 ** attempt) / 1000
+```
 
 | 之前 | 之后 |
 |---|---|
-| “这看着像早期设计留下的代码。那个 200ms 的重试下限很奇怪，大概是当时有人在调网络抖动，忘了删。我把它简化掉吧。” | “`来历` —— 三个 commit：`a1b2c3d` 为凭据路径加了重试循环，`e4f5a6b` 加了 200ms 下限。`谁改的` —— 下限是 dana 在 2023-11-02（`e4f5a6b`）最后改的。`动机证据` —— PR #418 原文：‘冷启动后第一次请求会立刻失败，只在 attempt 0 上睡 200ms。’`风险提示` —— `src/retry.ts:88` 只在冷启动路径调用它，`test/retry.cold.spec.ts` 断言了这个下限，删掉会重新触发 #418。`不确定处` —— 为什么正好是 200ms 没有记录（跑过 `git log --grep='200ms'`），标为猜测。” |
+| “这看着像早期设计留下的代码。那个 200ms 的重试下限很奇怪，大概是当时有人在调网络抖动，忘了删。我把它简化掉吧。” | “`来历` —— 五个 commit：`0dae26c` 加了 `fetch_token`；`6e7bbad` 加了重试循环和 `backoff_delay`；`2cb4f4f` 把文件挪进 `src/auth/`（0 行改动）；`ce4d1e7` 加了 attempt 0 的固定下限；`08dfe7a` 只把 tab 换成空格。`谁改的` —— 下限是 `ce4d1e7`（2024-03-12）写的，但裸 `git blame` 会回答 `08dfe7a`（2024-03-13）——那是重排提交，不是作者。`动机证据` —— `[verbatim]` `ce4d1e7` 的标题原文：`Hold attempt 0 to a fixed 200ms floor on cold start (#1)`；`[diff]` 同一个 commit 附带的注释写明凭据提供者在第一次尝试时还没初始化完，所以 attempt 0 要的是固定下限而不是 50ms 斜坡；为什么正好是 200ms，`[guess]`，历史里没有记录。`风险提示` —— `src/tests/test_backoff.py:8` 断言 `backoff_delay(0) == 0.2`，删掉这个分支测试立刻红；`src/auth/client.py:19` 每次失败都睡 `backoff_delay(attempt)`，冷启动首次失败会从 200ms 掉回 50ms。`不确定处` —— 没有关联的 issue 或 PR（固定句式见下），`#1` 指向空处。” |
+
+同一段区间，两条命令，两个答案。裸 `git blame`（多数解释就停在这一步）：
+
+```console
+$ git blame -L 24,27 -- src/auth/client.py
+08dfe7ae (Dana Okonkwo 2024-03-13 14:52:00 +0800 24)     if attempt == 0:
+08dfe7ae (Dana Okonkwo 2024-03-13 14:52:00 +0800 25)         # The credential provider is still initialising when the first attempt
+08dfe7ae (Dana Okonkwo 2024-03-13 14:52:00 +0800 26)         # runs, so attempt 0 needs a fixed floor instead of the 50ms ramp.
+08dfe7ae (Dana Okonkwo 2024-03-13 14:52:00 +0800 27)         return COLD_START_FLOOR_MS / 1000
+```
+
+这四行全部记在 `08dfe7a` 名下——而 `08dfe7a` 就是那条只把 tab 改成空格的提交。加上 `-w -C -C`：
+
+```console
+$ git blame -w -C -C -L 24,27 -- src/auth/client.py
+ce4d1e73 (Dana Okonkwo 2024-03-12 11:27:00 +0800 24)     if attempt == 0:
+ce4d1e73 (Dana Okonkwo 2024-03-12 11:27:00 +0800 25)         # The credential provider is still initialising when the first attempt
+ce4d1e73 (Dana Okonkwo 2024-03-12 11:27:00 +0800 26)         # runs, so attempt 0 needs a fixed floor instead of the 50ms ramp.
+ce4d1e73 (Dana Okonkwo 2024-03-12 11:27:00 +0800 27)         return COLD_START_FLOOR_MS / 1000
+```
+
+同样的四行，换了个 commit：`ce4d1e7`，早一天。裸 blame 把整个文件 28 行里的 15 行都算在重排提交头上，`-w` 之后是 0 行（两种模式的完整输出见 [session-log 第 10 节](../../examples/session-log.md)）。一次格式重排就能把作者藏起来；如果仓库里有一次四年前的 lint 批量重排，裸 blame 报出来的就是那次 lint。
+
+那 `#1` 是什么？查过之后，规则 7 的固定句式是：
+
+> No linked issue or PR found (ran: gh pr list --search ce4d1e7, git log --grep='#1'). Motive below is inferred from the diff only — confidence: low.
+
+全部命令、原始终端输出（含 `git log -L :backoff_delay:`、`git log --follow`、`git show ce4d1e7` 与断言测试的实跑结果）：[examples/session-log.md](../../examples/session-log.md)；重建这份历史的脚本：[examples/rebuild-demo.ps1](../../examples/rebuild-demo.ps1)。
 
 ## 十条规则
 
